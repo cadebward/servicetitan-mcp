@@ -211,6 +211,30 @@ describe("accounting domain", () => {
     expect(result.content[0]?.text).toContain("Invoice not found");
   });
 
+  // ── accounting_invoice_items_update ──
+
+  it("accounting_invoice_items_update forwards one item payload to the item endpoint", async () => {
+    const { handlers, patchMock } = createContext();
+    const handler = getHandler(handlers, "accounting_invoice_items_update");
+    const item = {
+      skuId: 26_884_579,
+      skuName: "PService",
+      description: "test line",
+      quantity: 1,
+      unitPrice: 200,
+    };
+
+    patchMock.mockResolvedValue("");
+
+    const result = await handler({ invoiceId: 123, payload: item });
+
+    expect(result.isError).not.toBe(true);
+    expect(patchMock).toHaveBeenCalledWith(
+      "/tenant/{tenant}/invoices/123/items",
+      item,
+    );
+  });
+
   // ── accounting_payments_list ──
 
   it("accounting_payments_list returns paginated payment results", async () => {
