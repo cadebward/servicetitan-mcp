@@ -237,7 +237,7 @@ describe("ST-77.2 Sales template refresh", () => {
   });
 
   it("adds and updates estimate items with explicit SKU and line item identifiers", async () => {
-    const { handlers, putMock } = createContext(loadEstimatesDomain);
+    const { handlers, getMock, putMock } = createContext(loadEstimatesDomain);
 
     await handler(handlers, "estimates_items_update")({
       estimateId: 81121781,
@@ -254,6 +254,49 @@ describe("ST-77.2 Sales template refresh", () => {
         chargeable: true,
       }),
     );
+    expect(putMock.mock.calls[0]?.[1]).not.toHaveProperty("qty");
+
+    getMock
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: {
+              id: 26865519,
+              displayName: "40 Gal Natural Gas Water Heater (Standard)",
+            },
+            skuAccount: "Sales",
+            description: "Original description",
+            membershipTypeId: null,
+            qty: 1,
+            unitRate: 1904,
+            unitCost: 0,
+            itemGroupName: null,
+            itemGroupRootId: null,
+            chargeable: true,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: {
+              id: 26865519,
+              displayName: "40 Gal Natural Gas Water Heater (Standard)",
+            },
+            skuAccount: "Sales",
+            description: "Water heater replacement",
+            membershipTypeId: 12,
+            qty: 2,
+            unitRate: 1250,
+            unitCost: 800,
+            itemGroupName: "Water Heaters",
+            itemGroupRootId: 700,
+            chargeable: true,
+          },
+        ],
+      });
 
     await handler(handlers, "estimates_items_update")({
       estimateId: 81121781,
@@ -289,7 +332,7 @@ describe("ST-77.2 Sales template refresh", () => {
   });
 
   it("maps legacy estimate item quantity/rate aliases to documented request fields", async () => {
-    const { handlers, postMock, putMock } = createContext(loadEstimatesDomain);
+    const { handlers, getMock, postMock, putMock } = createContext(loadEstimatesDomain);
 
     await handler(handlers, "estimates_create")({
       name: "Alias compatibility estimate",
@@ -315,6 +358,32 @@ describe("ST-77.2 Sales template refresh", () => {
       }),
     );
 
+    getMock
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: { id: 26865519, displayName: "Water heater" },
+            description: "Original description",
+            qty: 1,
+            unitRate: 1904,
+            chargeable: true,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: { id: 26865519, displayName: "Water heater" },
+            description: "Labor-only adjustment",
+            qty: 0.5,
+            unitRate: 250,
+            chargeable: true,
+          },
+        ],
+      });
+
     await handler(handlers, "estimates_items_update")({
       estimateId: 81121781,
       itemId: 9001,
@@ -335,7 +404,33 @@ describe("ST-77.2 Sales template refresh", () => {
   });
 
   it("allows estimate item updates without SKU fields", async () => {
-    const { handlers, putMock } = createContext(loadEstimatesDomain);
+    const { handlers, getMock, putMock } = createContext(loadEstimatesDomain);
+
+    getMock
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: { id: 26865519, displayName: "Water heater" },
+            description: "Original description",
+            qty: 1,
+            unitRate: 1904,
+            chargeable: true,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 9001,
+            sku: { id: 26865519, displayName: "Water heater" },
+            description: "Description-only correction",
+            qty: 1,
+            unitRate: 1904,
+            chargeable: true,
+          },
+        ],
+      });
 
     await handler(handlers, "estimates_items_update")({
       estimateId: 81121781,
@@ -350,6 +445,53 @@ describe("ST-77.2 Sales template refresh", () => {
         description: "Description-only correction",
       }),
     );
+    expect(putMock.mock.calls[0]?.[1]).not.toHaveProperty("qty");
+    expect(putMock.mock.calls[0]?.[1]).not.toHaveProperty("unitRate");
+    expect(getMock).toHaveBeenCalledWith(
+      "/tenant/{tenant}/estimates/items",
+      expect.objectContaining({
+        ids: "9001",
+        active: "Any",
+        pageSize: 5,
+      }),
+    );
+  });
+
+  it("returns an explicit error when ServiceTitan echoes success but fresh reads stay stale", async () => {
+    const { handlers, getMock, putMock } = createContext(loadEstimatesDomain);
+    const staleItem = {
+      id: 9001,
+      sku: {
+        id: 26865519,
+        displayName: "40 Gal Natural Gas Water Heater (Standard)",
+      },
+      skuAccount: "Sales",
+      description: "Water heater replacement",
+      membershipTypeId: null,
+      qty: 1,
+      unitRate: 1904,
+      unitCost: 0,
+      itemGroupName: null,
+      itemGroupRootId: null,
+      chargeable: true,
+      modifiedOn: "2026-07-07T15:09:27.6139484Z",
+    };
+
+    getMock.mockResolvedValue({ data: [staleItem] });
+    putMock.mockResolvedValue(staleItem);
+
+    const result = await handler(handlers, "estimates_items_update")({
+      estimateId: 81121781,
+      itemId: 9001,
+      skuId: 26865519,
+      unitRate: 2159,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Estimate item update was not persisted by ServiceTitan",
+    );
+    expect(result.content[0]?.text).toContain('"unitPrice": 2159');
   });
 
   it("lists and updates estimate templates", async () => {
