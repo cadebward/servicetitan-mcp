@@ -13,6 +13,13 @@ import {
   getErrorMessage,
 } from "../../utils.js";
 import { serviceCreateInputSchema, serviceUpdateInputSchema } from "./schemas.js";
+import {
+  hasPricebookSearchFilter,
+  pricebookSearchFilterParams,
+  searchPricebookItems,
+  summarizePricebookResponse,
+  withoutMcpSearchParams,
+} from "./search.js";
 
 const servicesListSchema = dateFilterParams(
   paginationParams(
@@ -34,6 +41,7 @@ const servicesListSchema = dateFilterParams(
         "Priority",
       ]),
       ...activeFilterParam(),
+      ...pricebookSearchFilterParams,
       ids: z.string().optional().describe("Comma-separated IDs (max 50)"),
       externalDataApplicationGuid: z
         .string()
@@ -84,11 +92,17 @@ export function registerServiceTools(client: ServiceTitanClient, registry: ToolR
     description: "List service pricebook items",
     schema: servicesListSchema.shape,
     handler: async (params) => {
-      const query = buildParams(params as Record<string, unknown>);
+      const input = params as Record<string, unknown>;
+      const query = buildParams(withoutMcpSearchParams(input));
 
       try {
+        if (hasPricebookSearchFilter(input)) {
+          const data = await searchPricebookItems(client, `/tenant/{tenant}/services`, input);
+          return toolResult(data);
+        }
+
         const data = await client.get(`/tenant/{tenant}/services`, query);
-        return toolResult(data);
+        return toolResult(input.lean === true ? summarizePricebookResponse(data) : data);
       } catch (error) {
         return toolError(getErrorMessage(error));
       }
