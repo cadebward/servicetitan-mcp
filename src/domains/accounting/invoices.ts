@@ -44,12 +44,37 @@ const invoiceUpdatePayloadSchema = z.object({
 const invoiceItemPatchSchema = z.object({
   id: z.number().int().optional().describe("Invoice item ID"),
   skuId: z.number().int().optional().describe("SKU ID"),
-  quantity: z.number().optional().describe("Item quantity"),
+  skuName: z.string().optional().describe("SKU name"),
+  technicianId: z.number().int().optional().describe("Technician ID"),
+  description: z.string().describe("Item description"),
+  quantity: z.number().describe("Item quantity"),
   unitPrice: z.number().optional().describe("Item unit price"),
-  total: z.number().optional().describe("Item total amount"),
-  description: z.string().optional().describe("Item description"),
-  tax: z.number().optional().describe("Tax amount"),
-});
+  cost: z.number().optional().describe("Item cost"),
+  isAddOn: z.boolean().optional().describe("Whether the item is an add-on"),
+  signature: z.string().optional().describe("Customer signature"),
+  technicianAcknowledgementSignature: z
+    .string()
+    .optional()
+    .describe("Technician acknowledgement signature"),
+  installedOn: z.string().optional().describe("Installation date-time"),
+  inventoryWarehouseName: z
+    .string()
+    .optional()
+    .describe("Inventory warehouse name"),
+  skipUpdatingMembershipPrices: z
+    .boolean()
+    .optional()
+    .describe("Skip membership price updates"),
+  itemGroupName: z.string().optional().describe("Item group name"),
+  itemGroupRootId: z.number().int().optional().describe("Item group root ID"),
+  inventoryLocationId: z
+    .number()
+    .int()
+    .optional()
+    .describe("Inventory location ID"),
+  durationBillingId: z.number().int().optional().describe("Duration billing ID"),
+  budgetCodeId: z.number().int().optional().describe("Budget code ID"),
+}).passthrough();
 
 const invoicesListSchema = paginationParams(
   dateFilterParams(
@@ -137,13 +162,9 @@ const invoiceIdItemIdSchema = z.object({
 
 const invoiceItemsUpdateSchema = z.object({
   invoiceId: z.number().int().describe("Invoice ID"),
-  payload: z
-    .union([
-      invoiceItemPatchSchema,
-      z.array(invoiceItemPatchSchema).describe("Invoice item patch operations"),
-    ])
-    .optional()
-    .describe("Invoice item patch payload"),
+  payload: invoiceItemPatchSchema.describe(
+    "Invoice item patch payload (single item upsert). Omit id to add a line; include it to update.",
+  ),
 });
 
 const invoiceCustomFieldTypesSchema = dateFilterParams(

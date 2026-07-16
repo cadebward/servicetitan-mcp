@@ -12,6 +12,9 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import type { ServiceTitanClient } from "../../src/client.js";
 import type { ServiceTitanConfig } from "../../src/config.js";
@@ -242,6 +245,76 @@ describe("total tool count", () => {
         byDomain[name],
         `Domain "${name}" missing from byDomain stats`,
       ).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("publishes concrete schemas for every payload and body parameter", async () => {
+    const server = new McpServer({ name: "schema-audit-server", version: "1.0.0" });
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+    const registry = new ToolRegistry(server, createConfig(), logger as any);
+    const serviceTitanClient = {
+      get: vi.fn(),
+      post: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as ServiceTitanClient;
+    registry.attachClient(serviceTitanClient);
+
+    for (const { name, loader } of ALL_DOMAINS) {
+      registry.registerDomain(name, loader);
+    }
+
+    const client = new Client({ name: "schema-audit-client", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+
+    try {
+      const { tools } = await client.listTools();
+      const typelessParameters: string[] = [];
+
+      for (const tool of tools) {
+        const properties = tool.inputSchema.properties ?? {};
+        for (const parameterName of ["payload", "body"] as const) {
+          const parameter = properties[parameterName];
+          if (!parameter || typeof parameter !== "object") {
+            continue;
+          }
+
+          const schema = parameter as Record<string, unknown>;
+          const hasConcreteSchema = ["type", "anyOf", "oneOf", "allOf", "$ref"].some(
+            (keyword) => keyword in schema,
+          );
+          if (!hasConcreteSchema) {
+            typelessParameters.push(`${tool.name}.${parameterName}`);
+          }
+        }
+      }
+
+      expect(typelessParameters).toEqual([]);
+
+      const invoiceItemsUpdate = tools.find(
+        (tool) => tool.name === "accounting_invoice_items_update",
+      );
+      const payloadSchema = invoiceItemsUpdate?.inputSchema.properties?.payload as
+        | Record<string, unknown>
+        | undefined;
+      expect(payloadSchema).toMatchObject({
+        type: "object",
+        required: expect.arrayContaining(["description", "quantity"]),
+        additionalProperties: true,
+      });
+    } finally {
+      await client.close();
+      await server.close();
     }
   });
 });
