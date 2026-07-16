@@ -12,6 +12,13 @@ import {
   toolResult,
 } from "../../utils.js";
 import { materialCreateInputSchema, materialUpdateInputSchema } from "./schemas.js";
+import {
+  hasPricebookSearchFilter,
+  pricebookSearchFilterParams,
+  searchPricebookItems,
+  summarizePricebookResponse,
+  withoutMcpSearchParams,
+} from "./search.js";
 
 const materialsListSchema = dateFilterParams(
   paginationParams(
@@ -33,6 +40,7 @@ const materialsListSchema = dateFilterParams(
         "Priority",
       ]),
       ...activeFilterParam(),
+      ...pricebookSearchFilterParams,
       ids: z.string().optional().describe("Comma-separated IDs (max 50)"),
       isOtherDirectCost: z
         .boolean()
@@ -129,11 +137,17 @@ export function registerMaterialTools(client: ServiceTitanClient, registry: Tool
     description: "List one requested page of material pricebook items using IDs, cost-type IDs, other-direct-cost state, active state, timestamps, and external-data mappings. Use pricebook_materials_get for a known item, pricebook_materials_cost_types_list for cost metadata, or inventory tools for stock movement.",
     schema: materialsListSchema.shape,
     handler: async (params) => {
-      const query = buildParams(params as Record<string, unknown>);
+      const input = params as Record<string, unknown>;
+      const query = buildParams(withoutMcpSearchParams(input));
 
       try {
+        if (hasPricebookSearchFilter(input)) {
+          const data = await searchPricebookItems(client, `/tenant/{tenant}/materials`, input);
+          return toolResult(data);
+        }
+
         const data = await client.get(`/tenant/{tenant}/materials`, query);
-        return toolResult(data);
+        return toolResult(input.lean === true ? summarizePricebookResponse(data) : data);
       } catch (error) {
         return toolError(error);
       }

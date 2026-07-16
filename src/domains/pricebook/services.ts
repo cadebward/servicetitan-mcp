@@ -12,6 +12,13 @@ import {
   toolResult,
 } from "../../utils.js";
 import { serviceCreateInputSchema, serviceUpdateInputSchema } from "./schemas.js";
+import {
+  hasPricebookSearchFilter,
+  pricebookSearchFilterParams,
+  searchPricebookItems,
+  summarizePricebookResponse,
+  withoutMcpSearchParams,
+} from "./search.js";
 
 const servicesListSchema = dateFilterParams(
   paginationParams(
@@ -33,6 +40,7 @@ const servicesListSchema = dateFilterParams(
         "Priority",
       ]),
       ...activeFilterParam(),
+      ...pricebookSearchFilterParams,
       ids: z.string().optional().describe("Comma-separated IDs (max 50)"),
       externalDataApplicationGuid: z
         .string()
@@ -83,11 +91,17 @@ export function registerServiceTools(client: ServiceTitanClient, registry: ToolR
     description: "List one requested page of service pricebook items using IDs, active state, created or modified timestamps, and external-data mappings. Use pricebook_services_get for one known item; use estimates or invoices for services quoted or sold on customer transactions.",
     schema: servicesListSchema.shape,
     handler: async (params) => {
-      const query = buildParams(params as Record<string, unknown>);
+      const input = params as Record<string, unknown>;
+      const query = buildParams(withoutMcpSearchParams(input));
 
       try {
+        if (hasPricebookSearchFilter(input)) {
+          const data = await searchPricebookItems(client, `/tenant/{tenant}/services`, input);
+          return toolResult(data);
+        }
+
         const data = await client.get(`/tenant/{tenant}/services`, query);
-        return toolResult(data);
+        return toolResult(input.lean === true ? summarizePricebookResponse(data) : data);
       } catch (error) {
         return toolError(error);
       }
