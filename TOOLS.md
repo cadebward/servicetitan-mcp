@@ -21,7 +21,7 @@ Total tools: 483
 | `accounting_invoices_custom_field_types_list` | `accounting` | `read` | List invoice custom field types |
 | `accounting_invoices_list` | `accounting` | `read` | List invoices |
 | `accounting_invoices_mark_as_exported` | `accounting` | `write` | Mark invoices as exported |
-| `accounting_invoices_update` | `accounting` | `write` | Patch an invoice |
+| `accounting_invoices_update` | `accounting` | `write` | Patch an invoice using Accounting v2. Set invoice summary text with payload.summary; payload.memo is unsupported by ServiceTitan. |
 | `accounting_invoices_update_custom_fields` | `accounting` | `write` | Update invoice custom fields |
 | `accounting_journal_entries_get_details` | `accounting` | `read` | Get journal entry detail rows |
 | `accounting_journal_entries_get_summary` | `accounting` | `read` | Get journal entry summary rows |

@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **Invoice summary updates** — `accounting_invoices_update` now exposes and forwards the documented `summary` field, rejects unsupported `memo` and empty payloads instead of issuing silent no-op patches, and aligns its payload schema with ServiceTitan's Accounting v2 `InvoiceUpdateRequest`.
+
 ## [2.6.2] - 2026-07-13
 
 ### Fixed

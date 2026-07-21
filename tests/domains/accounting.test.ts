@@ -186,18 +186,55 @@ describe("accounting domain", () => {
     const { handlers, patchMock } = createContext();
     const handler = getHandler(handlers, "accounting_invoices_update");
 
-    const updatedInvoice = { id: 55, total: 1200, status: "Exported", memo: "Q1 service" };
+    const updatedInvoice = { id: 55, summary: "Q1 service" };
     patchMock.mockResolvedValue(updatedInvoice);
 
     // confirmWrites=false in config, so the middleware allows the write immediately.
-    const result = await handler({ id: 55, payload: { memo: "Q1 service", total: 1200 } });
+    const result = await handler({ id: 55, payload: { summary: "Q1 service" } });
     const payload = parsePayload(result);
 
-    expect(payload).toMatchObject({ id: 55, total: 1200 });
+    expect(payload).toMatchObject({ id: 55, summary: "Q1 service" });
     expect(patchMock).toHaveBeenCalledWith(
       "/tenant/{tenant}/invoices/55",
-      expect.objectContaining({ memo: "Q1 service", total: 1200 }),
+      { summary: "Q1 service" },
     );
+  });
+
+  it("accounting_invoices_update returns an acknowledgement for an empty 200 response", async () => {
+    const { handlers, patchMock } = createContext();
+    const handler = getHandler(handlers, "accounting_invoices_update");
+
+    patchMock.mockResolvedValue("");
+
+    const result = await handler({ id: 55, payload: { summary: "Q1 service" } });
+
+    expect(parsePayload(result)).toEqual({
+      accepted: true,
+      invoiceId: 55,
+      updatedFields: ["summary"],
+    });
+  });
+
+  it("accounting_invoices_update rejects unsupported memo instead of sending a no-op patch", async () => {
+    const { handlers, patchMock } = createContext();
+    const handler = getHandler(handlers, "accounting_invoices_update");
+
+    const result = await handler({ id: 55, payload: { memo: "Q1 service" } });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("memo is not writable");
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it("accounting_invoices_update rejects an empty payload", async () => {
+    const { handlers, patchMock } = createContext();
+    const handler = getHandler(handlers, "accounting_invoices_update");
+
+    const result = await handler({ id: 55, payload: {} });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("At least one supported invoice field is required");
+    expect(patchMock).not.toHaveBeenCalled();
   });
 
   it("accounting_invoices_update surfaces API errors as tool errors", async () => {
@@ -206,7 +243,7 @@ describe("accounting domain", () => {
 
     patchMock.mockRejectedValue(new Error("Invoice not found"));
 
-    const result = await handler({ id: 999, payload: { memo: "test" } });
+    const result = await handler({ id: 999, payload: { summary: "test" } });
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("Invoice not found");
   });
@@ -270,7 +307,7 @@ describe("accounting domain", () => {
 
     const result = await getHandler(handlers, "accounting_invoices_update")({
       id: 55,
-      payload: { memo: "should not patch" },
+      payload: { summary: "should not patch" },
     });
 
     expect(result.isError).toBe(true);
