@@ -16,30 +16,6 @@ const customFieldMapSchema = z
   .catchall(scalarCustomFieldValueSchema)
   .describe("Custom field key/value map");
 
-const invoiceUpdatePayloadSchema = z.object({
-  status: z.string().optional().describe("Invoice status"),
-  number: z.string().optional().describe("Invoice reference number"),
-  customerId: z.number().int().optional().describe("Customer ID"),
-  jobId: z.number().int().optional().describe("Job ID"),
-  businessUnitId: z.number().int().optional().describe("Business unit ID"),
-  invoicedOn: z.string().optional().describe("Invoice date-time"),
-  dueDate: z.string().optional().describe("Invoice due date-time"),
-  total: z.number().optional().describe("Invoice total"),
-  balance: z.number().optional().describe("Invoice balance"),
-  memo: z.string().optional().describe("Invoice memo"),
-  exportId: z.string().optional().describe("External export ID"),
-  customFields: z
-    .array(
-      z.object({
-        typeId: z.number().int().optional().describe("Custom field type ID"),
-        name: z.string().optional().describe("Custom field name"),
-        value: z.string().optional().describe("Custom field value"),
-      }),
-    )
-    .optional()
-    .describe("Invoice custom fields"),
-});
-
 const invoiceItemPatchSchema = z.object({
   id: z.number().int().optional().describe("Invoice item ID"),
   skuId: z.number().int().optional().describe("SKU ID"),
@@ -74,6 +50,60 @@ const invoiceItemPatchSchema = z.object({
   durationBillingId: z.number().int().optional().describe("Duration billing ID"),
   budgetCodeId: z.number().int().optional().describe("Budget code ID"),
 }).passthrough();
+
+const invoicePaymentSettlementPatchSchema = z.object({
+  id: z.number().int().describe("Payment ID"),
+  settlementStatus: z
+    .enum(["NotSettled", "Settled"])
+    .optional()
+    .describe("Payment settlement status"),
+  settlementDate: z.string().optional().describe("Settlement date-time"),
+});
+
+// Keep this schema aligned with Accounting.V2.InvoiceUpdateRequest. ServiceTitan
+// accepts unknown JSON properties but ignores them, which otherwise turns schema
+// mistakes (such as the old `memo` field) into successful-looking no-op writes.
+const invoiceUpdatePayloadSchema = z
+  .object({
+    number: z.string().optional().describe("Invoice reference number"),
+    typeId: z.number().int().optional().describe("Invoice type ID"),
+    invoicedOn: z.string().optional().describe("Invoice date-time"),
+    subtotal: z.number().optional().describe("Invoice subtotal"),
+    tax: z.number().optional().describe("Invoice tax amount"),
+    taxZoneId: z.number().int().optional().describe("Tax zone ID"),
+    summary: z
+      .string()
+      .optional()
+      .describe("Invoice summary text (HTML supported). Use this field, not memo."),
+    royaltyStatus: z.enum(["Pending", "Sent", "Failed"]).optional(),
+    royaltyDate: z.string().optional().describe("Royalty date-time"),
+    royaltySentOn: z.string().optional().describe("Royalty sent date-time"),
+    royaltyMemo: z.string().optional().describe("Royalty memo (not the invoice summary)"),
+    exportId: z.string().optional().describe("External export ID"),
+    reviewStatus: z
+      .enum([
+        "NeedsReview",
+        "OnHold",
+        "Reviewed",
+        "PendingApproval",
+        "Rejected",
+        "ReadyForBilling",
+        "Invoiced",
+      ])
+      .optional(),
+    assignedToId: z.number().int().optional().describe("Assigned user ID"),
+    budgetCodeId: z.number().int().optional().describe("Budget code ID"),
+    items: z.array(invoiceItemPatchSchema).optional().describe("Invoice items"),
+    dueDate: z.string().optional().describe("Invoice due date (YYYY-MM-DD)"),
+    payments: z
+      .array(invoicePaymentSettlementPatchSchema)
+      .optional()
+      .describe("Payment settlement updates"),
+  })
+  .strict("Unsupported invoice update field. Use summary for invoice summary text; memo is not writable on this endpoint.")
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: "At least one supported invoice field is required",
+  });
 
 const invoicesListSchema = paginationParams(
   dateFilterParams(
@@ -146,8 +176,7 @@ const invoicesListSchema = paginationParams(
 const invoiceUpdateSchema = z.object({
   id: z.number().int().describe("Invoice ID"),
   payload: invoiceUpdatePayloadSchema
-    .optional()
-    .describe("Invoice fields to patch"),
+    .describe("Supported Accounting v2 InvoiceUpdateRequest fields to patch"),
 });
 
 const invoiceCustomFieldsUpdateSchema = z.object({
@@ -236,14 +265,22 @@ export function registerInvoiceTools(
     name: "accounting_invoices_update",
     domain: "accounting",
     operation: "write",
-    description: "Patch an invoice",
+    description:
+      "Patch an invoice using Accounting v2. Set invoice summary text with payload.summary; payload.memo is unsupported by ServiceTitan.",
     schema: invoiceUpdateSchema.shape,
     handler: async (params) => {
-      const input = params as z.infer<typeof invoiceUpdateSchema>;
-
       try {
+        const input = invoiceUpdateSchema.parse(params);
         const data = await client.patch(`/tenant/{tenant}/invoices/${input.id}`, input.payload);
-        return toolResult(data);
+        return toolResult(
+          data === "" || data === undefined
+            ? {
+                accepted: true,
+                invoiceId: input.id,
+                updatedFields: Object.keys(input.payload),
+              }
+            : data,
+        );
       } catch (error: unknown) {
         return toolError(error);
       }

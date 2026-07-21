@@ -71,6 +71,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **MCP tool annotations** — every tool now advertises `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`, derived from its `operation` (read, write, delete). Mutations default to destructive; verified additive or idempotent behavior can be declared through the optional `annotations` field. `readOnlyHint` remains fixed by `operation`.
 - `tests/mcp-contract.test.ts` — connects a real MCP client over an in-memory transport and asserts what `tools/list` actually returns, so metadata dropped at registration time is caught.
 
+### Fixed
+- **Invoice summary updates** — `accounting_invoices_update` now exposes and forwards the documented `summary` field, rejects unsupported `memo` and empty payloads instead of issuing silent no-op patches, and aligns its payload schema with ServiceTitan's Accounting v2 `InvoiceUpdateRequest`.
+
 ## [2.6.2] - 2026-07-13
 
 ### Fixed
