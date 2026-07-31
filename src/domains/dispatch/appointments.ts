@@ -86,6 +86,36 @@ const appointmentSummarySchema = z.object({
   technicianId: z.number().int().describe("Technician ID for the summary"),
 });
 
+const appointmentCreateSchema = z.object({
+  jobId: z.number().int().describe("ID of the job for the new appointment"),
+  start: z
+    .string()
+    .datetime({ offset: true })
+    .describe("Appointment start date/time"),
+  end: z
+    .string()
+    .datetime({ offset: true })
+    .describe("Appointment end date/time"),
+  arrivalWindowStart: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe("Arrival window start date/time"),
+  arrivalWindowEnd: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe("Arrival window end date/time"),
+  technicianIds: z
+    .array(z.number().int())
+    .optional()
+    .describe("IDs of technicians to assign to the appointment"),
+  specialInstructions: z
+    .string()
+    .optional()
+    .describe("Special instructions associated with the appointment"),
+});
+
 export function registerDispatchAppointmentTools(
   client: ServiceTitanClient,
   registry: ToolRegistry,
@@ -153,45 +183,12 @@ export function registerDispatchAppointmentTools(
     domain: "dispatch",
     operation: "write",
     description: "Create an appointment",
-    schema: {
-      jobId: z.number().int().describe("Job ID"),
-      appointmentNumber: z.string().describe("Appointment number"),
-      start: z.string().describe("Appointment start time"),
-      end: z.string().describe("Appointment end time"),
-      arrivalWindowStart: z
-        .string()
-        .optional()
-        .describe("Arrival window start timestamp"),
-      arrivalWindowEnd: z.string().optional().describe("Arrival window end timestamp"),
-      status: appointmentStatusSchema.optional().describe("Initial appointment status"),
-      specialInstructions: z
-        .string()
-        .optional()
-        .describe("Special instructions for dispatch"),
-      customerId: z.number().int().describe("Customer ID"),
-      createdById: z.number().int().describe("User ID creating the appointment"),
-      isConfirmed: z
-        .boolean()
-        .optional()
-        .describe("Whether the appointment is confirmed"),
-    },
+    schema: appointmentCreateSchema.shape,
     handler: async (params) => {
-      const typed = params as {
-        jobId: number;
-        appointmentNumber: string;
-        start: string;
-        end: string;
-        arrivalWindowStart?: string;
-        arrivalWindowEnd?: string;
-        status?: z.infer<typeof appointmentStatusSchema>;
-        specialInstructions?: string;
-        customerId: number;
-        createdById: number;
-        isConfirmed?: boolean;
-      };
+      const input = appointmentCreateSchema.parse(params);
 
       try {
-        const data = await client.post("/tenant/{tenant}/appointments", buildParams(typed));
+        const data = await client.post("/tenant/{tenant}/appointments", buildParams(input));
         return toolResult(data);
       } catch (error) {
         return toolError(getErrorMessage(error));
