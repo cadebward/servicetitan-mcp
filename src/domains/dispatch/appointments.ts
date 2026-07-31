@@ -87,6 +87,7 @@ const appointmentSummarySchema = z.object({
 });
 const appointmentCreateSchema = officialRequestSchema("Appointments_Add") as z.ZodObject<z.ZodRawShape>;
 
+
 export function registerDispatchAppointmentTools(
   client: ServiceTitanClient,
   registry: ToolRegistry,
@@ -156,10 +157,10 @@ export function registerDispatchAppointmentTools(
     description: "Create an appointment",
     schema: appointmentCreateSchema.shape,
     handler: async (params) => {
-      const typed = appointmentCreateSchema.parse(params);
+      const input = appointmentCreateSchema.parse(params);
 
       try {
-        const data = await client.post("/tenant/{tenant}/appointments", buildParams(typed));
+        const data = await client.post("/tenant/{tenant}/appointments", buildParams(input));
         return toolResult(data);
       } catch (error) {
         return toolError(error);
