@@ -34,11 +34,12 @@ function createContext() {
   };
   const registry = new ToolRegistry(server as any, createConfig(), logger as any);
   const post = vi.fn().mockResolvedValue({ id: 80233717 });
+  const put = vi.fn();
   const client = {
     get: vi.fn(),
     post,
     patch: vi.fn(),
-    put: vi.fn(),
+    put,
     delete: vi.fn(),
   } as unknown as ServiceTitanClient;
 
@@ -50,7 +51,7 @@ function createContext() {
     handlers.set(name as string, handler as (params: unknown) => Promise<ToolResponse>);
   }
 
-  return { post, handlers };
+  return { post, put, handlers };
 }
 
 function getHandler(
@@ -154,5 +155,23 @@ describe("dispatch job creation", () => {
     ).rejects.toThrow("appointments");
 
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+describe("dispatch job completion", () => {
+  it("explains that the public API has no completion endpoint without sending a request", async () => {
+    const { put, handlers } = createContext();
+
+    const result = await getHandler(handlers, "dispatch_jobs_complete")({
+      id: 81323374,
+      _confirmed: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Job completion is not available through ServiceTitan's public API",
+    );
+    expect(result.content[0]?.text).toContain("Neither JPM v2 nor Dispatch v2");
+    expect(put).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 - **Invoice summary updates** — `accounting_invoices_update` now exposes and forwards the documented `summary` field, rejects unsupported `memo` and empty payloads instead of issuing silent no-op patches, and aligns its payload schema with ServiceTitan's Accounting v2 `InvoiceUpdateRequest`.
+- **Unsupported job completion tool** — `dispatch_jobs_complete` no longer calls the nonexistent `PUT /jpm/v2/tenant/{tenant}/jobs/{id}/complete` route and misreports its authorization-shaped failure. The tool now returns an explicit unsupported-operation error and its catalog description documents the ServiceTitan public API limitation.
 
 ## [2.6.2] - 2026-07-13
 

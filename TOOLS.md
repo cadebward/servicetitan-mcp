@@ -163,7 +163,7 @@ Total tools: 483
 | `dispatch_jobs_cancel` | `dispatch` | `write` | Cancel a job |
 | `dispatch_jobs_cancel_reasons_list` | `dispatch` | `read` | List cancel reasons available for jobs |
 | `dispatch_jobs_canceled_logs_list` | `dispatch` | `read` | List canceled log entries for a job |
-| `dispatch_jobs_complete` | `dispatch` | `write` | Complete a job |
+| `dispatch_jobs_complete` | `dispatch` | `write` | Unavailable: ServiceTitan's public JPM v2 and Dispatch v2 APIs do not expose a job-completion endpoint. Job completion must occur in ServiceTitan's supported UI/mobile workflow. |
 | `dispatch_jobs_create` | `dispatch` | `write` | Create a job |
 | `dispatch_jobs_create_attachment` | `dispatch` | `write` | Attach a file to a job |
 | `dispatch_jobs_custom_field_types_list` | `dispatch` | `read` | List job custom field types |
