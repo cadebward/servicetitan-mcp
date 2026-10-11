@@ -23,6 +23,8 @@ COPY --from=build /app/node_modules ./node_modules
 RUN npm prune --omit=dev
 COPY --from=build /app/build ./build
 
+USER node
+
 # Default: Streamable HTTP server for remote access (Fly.io / Docker)
 # Falls back to SSE: CMD ["node", "build/sse.js"]
 # For stdio mode: CMD ["node", "build/index.js"]

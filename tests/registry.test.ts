@@ -349,7 +349,7 @@ describe("ToolRegistry", () => {
     const [, , wrappedHandler] = server.tool.mock.calls[0] ?? [];
     const unauthorized = await wrappedHandler(
       { id: 42 },
-      { requestInfo: { headers: { "x-user-email": "mallory@example.com" } } },
+      { authInfo: { extra: { sub: "mallory@example.com" } } },
     );
 
     expect(unauthorized.isError).toBe(true);
@@ -358,15 +358,31 @@ describe("ToolRegistry", () => {
 
     await wrappedHandler(
       { id: 42 },
-      { requestInfo: { headers: { "x-user-email": "Alice@Example.com" } } },
+      { authInfo: { extra: { sub: "alice@example.com" } } },
     );
 
     expect(handlerSpy).toHaveBeenCalledWith(
       { id: 42 },
       expect.objectContaining({
-        requestInfo: { headers: { "x-user-email": "Alice@Example.com" } },
+        authInfo: { extra: { sub: "alice@example.com" } },
       }),
     );
+  });
+
+  it("does not authorize caller-supplied metadata, headers, or an OAuth application ID as a user", async () => {
+    const handler = vi.fn();
+    const { registry, server } = createRegistry({ config: { allowedCallers: ["auth0|Alice"] } });
+    registry.register(createTool({ handler }));
+    const wrapped = server.tool.mock.calls[0][2];
+    for (const extra of [
+      { _meta: { sub: "auth0|Alice", caller: "auth0|Alice", email: "auth0|Alice" } },
+      { requestInfo: { headers: { "x-user-id": "auth0|Alice", "x-user-email": "auth0|Alice" } } },
+      { authInfo: { clientId: "auth0|Alice" } },
+      { authInfo: { extra: { sub: "auth0|alice" } } },
+    ]) {
+      expect((await wrapped({}, extra)).isError).toBe(true);
+    }
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("rejects allowlisted mode when caller identity is unavailable", async () => {

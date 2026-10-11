@@ -93,7 +93,7 @@ export function registerExportTools(client: ServiceTitanClient, registry: ToolRe
   registerExportTool(registry, client, "export_calls", "Export calls", "/tenant/{tenant}/export/calls");
 
   // Payroll exports
-  registerExportTool(registry, client, "export_timesheets", "Export timesheets", "/tenant/{tenant}/export/timesheets");
+  registerExportTool(registry, client, "export_timesheets", "Export timesheets", "/tenant/{tenant}/export/jobs/timesheets");
   registerExportTool(registry, client, "export_timesheet_codes", "Export timesheet codes", "/tenant/{tenant}/export/timesheet-codes");
   registerExportTool(registry, client, "export_gross_pay_items", "Export gross pay items", "/tenant/{tenant}/export/gross-pay-items");
   registerExportTool(registry, client, "export_payroll_settings", "Export payroll settings", "/tenant/{tenant}/export/payroll-settings");

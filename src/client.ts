@@ -162,6 +162,17 @@ const ROUTE_TABLE: Record<string, string> = {
 };
 
 /**
+ * Routes whose owning module cannot be inferred from their first resource
+ * segment. Keep the most specific patterns first.
+ */
+const CONTEXTUAL_ROUTE_TABLE: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\/jobs\/(?:[^/]+\/)?timesheets(?:\/|$)/, "payroll"],
+  [/^\/jobs\/(?:[^/]+\/)?splits(?:\/|$)/, "payroll"],
+  [/^\/technicians\/[^/]+\/(?:payrolls|payroll-settings)(?:\/|$)/, "payroll"],
+  [/^\/employees\/[^/]+\/(?:payrolls|payroll-settings)(?:\/|$)/, "payroll"],
+];
+
+/**
  * For /tenant/{id}/export/{resource} paths, maps the resource to its API module.
  * Export endpoints live under their parent domain: /{module}/v2/tenant/{id}/export/{resource}
  */
@@ -177,7 +188,8 @@ const EXPORT_ROUTE_TABLE: Record<string, string> = {
   "/job-notes": "jpm",
   "/job-history": "jpm",
   "/job-canceled-logs": "jpm",
-  "/jobs/splits": "jpm",
+  "/jobs/splits": "payroll",
+  "/jobs/timesheets": "payroll",
   "/appointments": "jpm",
   "/appointment-assignments": "dispatch",
   "/job-types": "jpm",
@@ -372,12 +384,11 @@ export class ServiceTitanClient {
 
     // Handle bare versioned paths like /v2/tenant/{id}/calls or /v3/tenant/{id}/calls
     // These need the module prefix prepended: /v2/tenant/.../calls → /telecom/v2/tenant/.../calls
-    const versionedMatch = path.match(/^\/(v\d+)\/tenant\/[^/]+(\/export)?(\/[^/?]+)/);
+    const versionedMatch = path.match(/^\/(v\d+)\/tenant\/[^/]+(\/export)?(\/[^?]+)/);
     if (versionedMatch) {
       const isExport = versionedMatch[2] === "/export";
-      const resource = versionedMatch[3];
-      const table = isExport ? EXPORT_ROUTE_TABLE : ROUTE_TABLE;
-      const prefix = table[resource];
+      const resourcePath = versionedMatch[3];
+      const prefix = this.findApiPrefix(resourcePath, isExport);
       if (prefix) {
         return `/${prefix}${path}`;
       }
@@ -385,32 +396,51 @@ export class ServiceTitanClient {
     }
 
     // Extract the resource segment after /tenant/{id}/
-    const match = path.match(/^\/tenant\/[^/]+(\/export)?(\/[^/?]+)/);
+    const match = path.match(/^\/tenant\/[^/]+(\/export)?(\/[^?]+)/);
     if (!match) return path;
 
     const isExport = match[1] === "/export";
-    const resource = match[2]; // e.g. "/customers", "/jobs"
+    const resourcePath = match[2]; // e.g. "/customers/123", "/jobs/123/timesheets"
 
     // Export endpoints are nested under their parent domain prefix
     if (isExport) {
-      const exportPrefix = EXPORT_ROUTE_TABLE[resource];
+      const exportPrefix = this.findApiPrefix(resourcePath, true);
       if (exportPrefix) {
         return `/${exportPrefix}/v2${path}`;
       }
       // Default: try matching the exported resource to a regular domain
-      const regularPrefix = ROUTE_TABLE[resource];
+      const regularPrefix = this.findApiPrefix(resourcePath, false);
       if (regularPrefix) {
         return `/${regularPrefix}/v2${path}`;
       }
     }
 
-    const prefix = ROUTE_TABLE[resource];
+    const prefix = this.findApiPrefix(resourcePath, false);
     if (prefix) {
       return `/${prefix}/v2${path}`;
     }
 
     // Fallback: return path as-is (will likely 404, but better than silently misrouting)
     return path;
+  }
+
+  private findApiPrefix(resourcePath: string, isExport: boolean): string | undefined {
+    if (!isExport) {
+      const contextual = CONTEXTUAL_ROUTE_TABLE.find(([pattern]) =>
+        pattern.test(resourcePath),
+      );
+      if (contextual) return contextual[1];
+    }
+
+    const table = isExport ? EXPORT_ROUTE_TABLE : ROUTE_TABLE;
+    const matchingResource = Object.keys(table)
+      .filter(
+        (resource) =>
+          resourcePath === resource || resourcePath.startsWith(`${resource}/`),
+      )
+      .sort((left, right) => right.length - left.length)[0];
+
+    return matchingResource ? table[matchingResource] : undefined;
   }
 
   private setupInterceptors(): void {

@@ -7,6 +7,7 @@ import type { ServiceTitanClient } from "./client.js";
 import type { ServiceTitanConfig } from "./config.js";
 import type { Logger } from "./logger.js";
 import type { ToolResponse } from "./types.js";
+import type { OAuthAccess } from "./oauth.js";
 import { toolError, toolResult } from "./utils.js";
 
 export type ToolOperation = "read" | "write" | "delete";
@@ -30,6 +31,8 @@ export type DomainLoader = (
 export interface ToolHandlerExtra {
   authInfo?: {
     clientId?: string;
+    scopes?: string[];
+    expiresAt?: number;
     extra?: Record<string, unknown>;
   };
   sessionId?: string;
@@ -53,6 +56,7 @@ export class ToolRegistry {
     private readonly config: ServiceTitanConfig,
     private readonly logger: Logger,
     private readonly auditLogger: AuditLogger = new AuditLogger(logger),
+    private readonly oauth: OAuthAccess | null = null,
   ) {}
 
   attachClient(client: ServiceTitanClient): void {
@@ -93,7 +97,20 @@ export class ToolRegistry {
       throw new Error(`Tool "${wrappedTool.name}" is already registered`);
     }
 
-    this.server.tool(wrappedTool.name, wrappedTool.schema, wrappedTool.handler);
+    if (this.oauth) {
+      this.server.registerTool(wrappedTool.name, {
+        description: wrappedTool.description,
+        inputSchema: wrappedTool.schema,
+        annotations: {
+          readOnlyHint: wrappedTool.operation === "read",
+          destructiveHint: wrappedTool.operation === "delete",
+          openWorldHint: true,
+        },
+        _meta: { securitySchemes: [{ type: "oauth2", scopes: [this.oauth.config.scope] }] },
+      }, wrappedTool.handler);
+    } else {
+      this.server.tool(wrappedTool.name, wrappedTool.schema, wrappedTool.handler);
+    }
 
     this.registered += 1;
     this.byDomain[domain] = (this.byDomain[domain] ?? 0) + 1;
@@ -196,6 +213,16 @@ export class ToolRegistry {
           ? this.withoutConfirm(paramRecord)
           : paramRecord;
 
+      if (this.oauth && (!extra?.authInfo?.extra?.sub ||
+          !this.oauth.config.allowedSubjects.includes(String(extra.authInfo.extra.sub)) ||
+          !this.oauth.config.allowedClientIds.includes(extra.authInfo.clientId ?? "") ||
+          !extra.authInfo.scopes?.includes(this.oauth.config.scope) ||
+          !extra.authInfo.expiresAt || extra.authInfo.expiresAt <= Date.now() / 1000)) {
+        return {
+          ...toolError("OAuth authorization required"),
+          _meta: { "mcp/www_authenticate": [this.oauth.challenge()] },
+        };
+      }
       const authorizationError = this.authorizeCaller(extra);
       if (authorizationError) {
         return authorizationError;
@@ -285,66 +312,10 @@ export class ToolRegistry {
   }
 
   private extractCallerIdentity(extra?: ToolHandlerExtra): string | null {
-    const authExtra = this.toRecord(extra?.authInfo?.extra);
-    const requestMeta = this.toRecord(extra?._meta);
-    const headers = this.normalizeHeaders(extra?.requestInfo?.headers);
-
-    const candidates = [
-      extra?.authInfo?.clientId,
-      this.readString(authExtra, "caller"),
-      this.readString(authExtra, "user"),
-      this.readString(authExtra, "username"),
-      this.readString(authExtra, "email"),
-      this.readString(authExtra, "sub"),
-      this.readString(requestMeta, "caller"),
-      this.readString(requestMeta, "user"),
-      this.readString(requestMeta, "username"),
-      this.readString(requestMeta, "email"),
-      headers["x-caller-id"],
-      headers["x-user-id"],
-      headers["x-user-email"],
-      headers["x-forwarded-user"],
-      headers["x-auth-request-email"],
-      headers["x-ms-client-principal-name"],
-    ];
-
-    for (const candidate of candidates) {
-      const normalized = this.normalizeCaller(candidate);
-      if (normalized) {
-        return normalized;
-      }
-    }
-
-    return null;
-  }
-
-  private normalizeHeaders(
-    headers: Record<string, string | string[] | undefined> | undefined,
-  ): Record<string, string | undefined> {
-    if (!headers) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(headers).map(([key, value]) => [
-        key.toLowerCase(),
-        Array.isArray(value) ? value[0] : value,
-      ]),
-    );
-  }
-
-  private readString(record: Record<string, unknown>, key: string): string | undefined {
-    const value = record[key];
-    return typeof value === "string" ? value : undefined;
-  }
-
-  private normalizeCaller(value: string | undefined): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const normalized = value.trim().toLowerCase();
-    return normalized.length > 0 ? normalized : null;
+    // Only the transport's verified user subject is authoritative. OAuth client IDs
+    // identify applications, and MCP metadata / forwarded headers are untrusted.
+    const subject = extra?.authInfo?.extra?.sub;
+    return typeof subject === "string" && subject.length > 0 ? subject : null;
   }
 
   private buildConfirmationPreview(

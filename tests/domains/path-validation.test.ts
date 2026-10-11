@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ServiceTitanClient } from "../../src/client.js";
 import type { ServiceTitanConfig } from "../../src/config.js";
 import { loadCrmDomain } from "../../src/domains/crm/index.js";
+import { loadReportingDomain } from "../../src/domains/reporting/index.js";
 import { loadMarketingDomain } from "../../src/domains/marketing/index.js";
 import type { DomainLoader } from "../../src/registry.js";
 import { ToolRegistry } from "../../src/registry.js";
@@ -11,6 +12,7 @@ import type { ToolResponse } from "../../src/types.js";
 
 interface DomainTestContext {
   getMock: ReturnType<typeof vi.fn>;
+  postMock: ReturnType<typeof vi.fn>;
   handlers: Map<string, (params: unknown) => Promise<ToolResponse>>;
   schemas: Map<string, Record<string, z.ZodTypeAny>>;
 }
@@ -44,9 +46,10 @@ function createDomainContext(loader: DomainLoader): DomainTestContext {
   };
   const registry = new ToolRegistry(server as any, createConfig(), logger as any);
   const getMock = vi.fn();
+  const postMock = vi.fn();
   const client = {
     get: getMock,
-    post: vi.fn(),
+    post: postMock,
     patch: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
@@ -63,10 +66,31 @@ function createDomainContext(loader: DomainLoader): DomainTestContext {
     schemas.set(name as string, schema as Record<string, z.ZodTypeAny>);
   }
 
-  return { getMock, handlers, schemas };
+  return { getMock, postMock, handlers, schemas };
 }
 
 describe("path validation", () => {
+  it.each(["reporting_reports_list", "reporting_reports_get", "reporting_reports_data_create"])(
+    "%s rejects category traversal before making any API call", async name => {
+      const {schemas,handlers,getMock,postMock} = createDomainContext(loadReportingDomain);
+      const schema = z.object(schemas.get(name)!);
+      for (const reportCategory of ["../../../../../crm/v2/tenant/999/customers?", "..", "%2e%2e%2f", "a/b", "a\\b", "a?b", "a#b", ""]) {
+        const params = {reportCategory,reportId:1};
+        expect(schema.safeParse(params).success).toBe(false);
+        await expect(handlers.get(name)!(params)).rejects.toThrow();
+      }
+      expect(getMock).not.toHaveBeenCalled();
+      expect(postMock).not.toHaveBeenCalled();
+      expect(schema.safeParse({reportCategory:"job_reports-1",reportId:1}).success).toBe(true);
+      await handlers.get(name)!({reportCategory:"job_reports-1",reportId:1});
+      if (name === "reporting_reports_data_create") {
+        expect(postMock).toHaveBeenCalledWith("/tenant/{tenant}/report-category/job_reports-1/reports/1/data", {}, {});
+      } else {
+        expect(getMock).toHaveBeenCalledOnce();
+      }
+    },
+  );
+
   it("rejects unsafe CRM relationship type slugs", () => {
     const { schemas } = createDomainContext(loadCrmDomain);
     const schema = z.object(schemas.get("crm_contact_relationships_create") ?? {});

@@ -254,7 +254,7 @@ Copy `.env.example` to `.env` and fill in your credentials.
 | `ST_TIMEZONE` | `UTC` | IANA timezone for the tenant (e.g. `America/New_York`) — used for date-bound intelligence queries and local-time display conversion in all tool responses |
 | `ST_RESPONSE_SHAPING` | `true` | Set to `false` to disable intelligence response transformation |
 | `ST_CORS_ORIGIN` | _(none)_ | Allowed CORS origin for Streamable HTTP / SSE. Required for browser access. |
-| `ST_ALLOWED_CALLERS` | _(none)_ | Comma-separated caller identity allowlist (e.g. `alice@example.com,svc-user`) |
+| `ST_ALLOWED_CALLERS` | _(none)_ | Comma-separated exact verified user subjects (e.g. `auth0|USER_ID`) |
 | `ST_INTEL_CACHE_TTL_MS` | `300000` | Intelligence result cache TTL in milliseconds (default: 5 minutes) |
 | `ST_MCP_PORT` / `PORT` | `3100` | HTTP server port for Streamable HTTP and SSE transports |
 | `ST_MCP_API_KEY` | _(none)_ | API key for authenticating remote MCP clients (required for HTTP transports) |
@@ -397,3 +397,10 @@ See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
 ## License
 
 MIT
+
+
+### ChatGPT / dot OAuth deployment
+
+ChatGPT personal plugins require OAuth; the legacy static API-key examples above do not connect dot. The Fly deployment uses Auth0 authorization-code login, explicit user/client allowlists, and write access controlled by `ST_READONLY`. This Fly deployment sets `ST_READONLY=false` to enable writes for approved callers. See [Auth0 deployment setup](docs/auth0-deployment.md) for required environment variables and connection steps.
+
+In OAuth mode the old MCP API key is rejected. `ST_ALLOWED_CALLERS`, if configured, now accepts only exact verified user subjects from the authenticated transport; caller-supplied metadata and identity headers are not trusted.

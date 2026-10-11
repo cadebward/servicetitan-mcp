@@ -2,15 +2,16 @@
 # Deploy: fly deploy
 # Secrets: fly secrets set ST_CLIENT_ID=... ST_CLIENT_SECRET=... etc.
 
-app = "servicetitan-mcp"
+app = "rmp-servicetitan-mcp"
 primary_region = "iad"
 
 [build]
 
 [env]
+  ST_MCP_AUTH_MODE = "oauth"
   ST_ENVIRONMENT = "production"
-  ST_READONLY = "true"
-  ST_TIMEZONE = "America/New_York"
+  ST_READONLY = "false"
+  ST_TIMEZONE = "America/Denver"
   ST_LOG_LEVEL = "info"
   ST_RESPONSE_SHAPING = "true"
   PORT = "8080"

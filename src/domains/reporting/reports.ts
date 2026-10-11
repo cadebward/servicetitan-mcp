@@ -4,9 +4,18 @@ import type { ServiceTitanClient } from "../../client.js";
 import type { ToolRegistry } from "../../registry.js";
 import { buildParams, paginationParams, toolError, toolResult, getErrorMessage } from "../../utils.js";
 
+const reportCategorySchema = z.string()
+  .regex(/^[a-zA-Z0-9_-]+$/, "Report category must be a single ID or slug")
+  .describe("Report category ID");
+
+const reportGetSchema = z.object({
+  reportCategory: reportCategorySchema,
+  reportId: z.number().int().describe("Report ID"),
+});
+
 const reportListSchema = paginationParams(
   z.object({
-    reportCategory: z.string().describe("Report category ID"),
+    reportCategory: reportCategorySchema,
   }),
 );
 
@@ -16,7 +25,7 @@ const reportParameterSchema = z.object({
 });
 
 const reportDataSchema = z.object({
-  reportCategory: z.string().describe("Report category ID"),
+  reportCategory: reportCategorySchema,
   reportId: z.number().int().describe("Report ID"),
   parameters: z
     .array(reportParameterSchema)
@@ -40,12 +49,7 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
     description: "List reports in a report category",
     schema: reportListSchema.shape,
     handler: async (params) => {
-      const { reportCategory, ...query } = params as {
-        reportCategory: string;
-        page?: number;
-        pageSize?: number;
-        includeTotal?: boolean;
-      };
+      const { reportCategory, ...query } = reportListSchema.parse(params);
 
       try {
         const data = await client.get(
@@ -64,15 +68,9 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
     domain: "reporting",
     operation: "read",
     description: "Get a report definition in a category",
-    schema: {
-      reportCategory: z.string().describe("Report category ID"),
-      reportId: z.number().int().describe("Report ID"),
-    },
+    schema: reportGetSchema.shape,
     handler: async (params) => {
-      const { reportCategory, reportId } = params as {
-        reportCategory: string;
-        reportId: number;
-      };
+      const { reportCategory, reportId } = reportGetSchema.parse(params);
 
       try {
         const data = await client.get(
@@ -93,9 +91,7 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
       "Fetch report data rows. Use the report definition to discover required parameters. Date parameters use YYYY-MM-DD format.",
     schema: reportDataSchema.shape,
     handler: async (params) => {
-      const { reportCategory, reportId, parameters, ...query } = params as z.infer<
-        typeof reportDataSchema
-      >;
+      const { reportCategory, reportId, parameters, ...query } = reportDataSchema.parse(params);
 
       try {
         const data = await client.post(

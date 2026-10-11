@@ -5,7 +5,7 @@
  * Replaces the SSE transport with the newer Streamable HTTP protocol.
  * Uses standard HTTP request/response — no proxy buffering issues.
  *
- * Authentication: requires x-api-key header matching ST_MCP_API_KEY env var.
+ * Authentication: OAuth access tokens in oauth mode; shared API key in legacy api-key mode.
  *
  * Usage:
  *   ST_MCP_API_KEY=<secret> node build/streamable-http.js
@@ -24,6 +24,9 @@ import { createRequire } from "node:module";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { loadOAuthConfig, OAuthAccess, OAuthFailure } from "./oauth.js";
 
 import { AuditLogger } from "./audit.js";
 import { ServiceTitanClient } from "./client.js";
@@ -47,7 +50,9 @@ process.on("unhandledRejection", (reason) => {
 const PORT = Number(process.env.PORT ?? process.env.ST_MCP_PORT ?? 3100);
 const API_KEY = process.env.ST_MCP_API_KEY ?? "";
 
-if (!API_KEY) {
+const oauthConfig = loadOAuthConfig();
+
+if (!oauthConfig && !API_KEY) {
   process.stderr.write("Fatal: ST_MCP_API_KEY is required for remote access.\n");
   process.exit(1);
 }
@@ -55,8 +60,10 @@ if (!API_KEY) {
 // ── Constant-time string comparison ──
 
 function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
 }
 
 // ── Auth middleware ──
@@ -104,6 +111,7 @@ function isInitializeRequest(body: unknown): boolean {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const oauth = oauthConfig ? await OAuthAccess.discover(oauthConfig) : null;
   setMaxResponseChars(config.maxResponseChars);
   setDisplayTimezone(config.timezone);
 
@@ -117,7 +125,7 @@ async function main(): Promise<void> {
 
   // Create a "template" McpServer + registry to register tools once, then log stats
   const templateServer = new McpServer({ name: "ServiceTitan", version });
-  const templateRegistry = new ToolRegistry(templateServer, config, logger, auditLogger);
+  const templateRegistry = new ToolRegistry(templateServer, config, logger, auditLogger, oauth);
   templateRegistry.attachClient(client);
 
   templateRegistry.register({
@@ -152,7 +160,7 @@ async function main(): Promise<void> {
   /** Create a fresh McpServer + ToolRegistry per session */
   async function createSessionServer(): Promise<McpServer> {
     const sessionMcpServer = new McpServer({ name: "ServiceTitan", version });
-    const sessionRegistry = new ToolRegistry(sessionMcpServer, config, logger, auditLogger);
+    const sessionRegistry = new ToolRegistry(sessionMcpServer, config, logger, auditLogger, oauth);
     sessionRegistry.attachClient(client);
 
     sessionRegistry.register({
@@ -189,6 +197,7 @@ async function main(): Promise<void> {
     server: McpServer;
     lastSeen: number;
     closing: boolean;
+    owner: string;
   };
 
   // Track active sessions: transport + server
@@ -266,8 +275,25 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Auth required for everything else
-    if (!authenticate(req)) {
+    if (oauth && req.method === "GET" && [
+      "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp",
+    ].includes(url.pathname)) {
+      sendJson(res, 200, oauth.metadata());
+      return;
+    }
+
+    // OAuth mode never falls back to the legacy shared key or forwarded identity.
+    let owner = "legacy-api-key";
+    if (oauth) {
+      try {
+        const auth = await oauth.authenticate(req);
+        (req as IncomingMessage & { auth: AuthInfo }).auth = auth;
+        owner = oauth.sessionOwner(auth);
+      } catch (error) {
+        oauth.reject(res, error instanceof OAuthFailure ? error : new OAuthFailure(401, "invalid_token"));
+        return;
+      }
+    } else if (!authenticate(req)) {
       sendJson(res, 401, { error: "Unauthorized", requestId });
       return;
     }
@@ -315,6 +341,10 @@ async function main(): Promise<void> {
         if (sessionId && sessions.has(sessionId)) {
           // Reuse existing session
           const session = sessions.get(sessionId)!;
+          if (session.owner !== owner) {
+            sendJson(res, 403, { error: "Session belongs to another authenticated principal", requestId });
+            return;
+          }
           if (session.closing) {
             sendJson(res, 404, { error: "Session not found. Send initialize request without session ID.", requestId });
             return;
@@ -358,6 +388,7 @@ async function main(): Promise<void> {
               server: sessionServer,
               lastSeen: Date.now(),
               closing: false,
+              owner,
             });
           },
         });
