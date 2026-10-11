@@ -35,7 +35,6 @@ export const UNSUPPORTED_TOOLS = Object.freeze({
   export_job_cancel_reasons: { reason: "export/job-cancel-reasons is undocumented." },
   export_location_recurring_services: { reason: "export/location-recurring-services is undocumented.", migration: "Use the documented export_recurring_services feed." },
   export_location_recurring_service_events: { reason: "export/location-recurring-service-events is undocumented.", migration: "Use the documented recurring-service-events export path." },
-  export_timesheets: { reason: "export/timesheets is undocumented.", migration: "Use the documented /export/jobs/timesheets feed." },
 } satisfies Record<string, UnsupportedToolContract>);
 
 export type UnsupportedToolName = keyof typeof UNSUPPORTED_TOOLS;

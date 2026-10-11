@@ -2,7 +2,7 @@
 
 Generated from the actual registry. ServiceTitan-facing read tools are backed by pinned API contracts and are eligible for stable support subject to scopes, module availability, and company validation. Live evidence covers representative reads, not every read tool. Built-in system tools provide health, readiness, and stored-result retrieval. Mutations are experimental and have not been verified against a live ServiceTitan Integration environment; they require both `ST_READONLY=false` and `ST_EXPERIMENTAL_WRITES=true`. Readonly mode always hides mutations. Profiles and tool allowlists narrow this catalog further. Discovery does not grant ServiceTitan API scopes.
 
-ServiceTitan-facing reads: 261; built-in system tools: 3; readonly discovery: 264; experimental mutations: 194; total with explicit experimental opt-in: 458.
+ServiceTitan-facing reads: 262; built-in system tools: 3; readonly discovery: 265; experimental mutations: 194; total with explicit experimental opt-in: 459.
 
 ## _system
 
@@ -30,7 +30,7 @@ ServiceTitan-facing reads: 261; built-in system tools: 3; readonly discovery: 26
 | `accounting_invoices_custom_field_types_list` | read | List one requested page of invoice custom-field definitions, with paging and total-count controls. Use this to resolve the metadata for invoice custom fields; use accounting_invoices_list to retrieve invoice records and their values. |
 | `accounting_invoices_list` | read | List one requested page of customer invoice headers using customer, job, business-unit, invoice, date, amount, balance, review, and assignment filters. Use this for filtered invoice search; use estimates or invoice-item tools when the required grain is an estimate or individual line item. |
 | `accounting_invoices_mark_as_exported` | write | EXPERIMENTAL: This mutation has not been verified against a live ServiceTitan Integration environment. Mark invoices as exported |
-| `accounting_invoices_update` | write | EXPERIMENTAL: This mutation has not been verified against a live ServiceTitan Integration environment. Patch an invoice |
+| `accounting_invoices_update` | write | EXPERIMENTAL: This mutation has not been verified against a live ServiceTitan Integration environment. Patch an invoice using Accounting v2. Set invoice summary text with payload.summary; payload.memo is unsupported by ServiceTitan. |
 | `accounting_invoices_update_custom_fields` | write | EXPERIMENTAL: This mutation has not been verified against a live ServiceTitan Integration environment. Update invoice custom fields |
 | `accounting_journal_entries_get_details` | read | Retrieve journal-entry detail rows for the requested journal-entry IDs. Use this for line-level account and amount detail; use accounting_journal_entries_get_summary for header-level totals. |
 | `accounting_journal_entries_get_summary` | read | Retrieve journal-entry summary rows for the requested journal-entry IDs. Use this for header-level accounting totals; use accounting_journal_entries_get_details for the corresponding line-level detail rows. |
@@ -271,6 +271,7 @@ ServiceTitan-facing reads: 261; built-in system tools: 3; readonly discovery: 26
 | `export_tag_types` | read | Read the incremental tag-type export feed for cross-domain bulk synchronization. This is the same feed as settings_tag_types_export; use whichever name is available and do not fetch both. Continue immediately with continueFrom while hasMore is true; when false, retain it and wait before polling again. includeRecentChanges may repeat records. |
 | `export_technicians` | read | Read the incremental technicians export feed for bulk synchronization. Start with a date or omit from to start at the beginning of the feed, continue immediately with continueFrom while hasMore is true, and when false retain it and wait before polling again. includeRecentChanges may return records sooner but can repeat them. |
 | `export_timesheet_codes` | read | Read the incremental timesheet codes export feed for bulk synchronization. Start with a date or omit from to start at the beginning of the feed, continue immediately with continueFrom while hasMore is true, and when false retain it and wait before polling again. includeRecentChanges may return records sooner but can repeat them. |
+| `export_timesheets` | read | Export timesheets |
 | `export_transfers` | read | Read the incremental transfers export feed for bulk synchronization. Start with a date or omit from to start at the beginning of the feed, continue immediately with continueFrom while hasMore is true, and when false retain it and wait before polling again. includeRecentChanges may return records sooner but can repeat them. |
 ## intelligence
 
@@ -545,7 +546,6 @@ These tools are unavailable in v3.
 | `export_job_cancel_reasons` | export/job-cancel-reasons is undocumented. |
 | `export_location_recurring_service_events` | export/location-recurring-service-events is undocumented. |
 | `export_location_recurring_services` | export/location-recurring-services is undocumented. |
-| `export_timesheets` | export/timesheets is undocumented. |
 | `marketing_campaign_costs_delete` | DELETE costs/{id} is undocumented; the item supports GET and PATCH. |
 | `marketing_suppressions_add` | No suppression resource exists in the public ServiceTitan OpenAPI catalog. |
 | `marketing_suppressions_get` | No suppression resource exists in the public ServiceTitan OpenAPI catalog. |

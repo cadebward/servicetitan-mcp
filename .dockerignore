@@ -1,17 +1,10 @@
-node_modules
-build
-.git
-.env
-.env.*
-**/.env
-**/.env.*
-audit
-benchmarks
-docs
-.tmp-*
-*.tgz
-*.tar
-*.tar.gz
-tests
-*.md
-coverage
+# Only send build inputs to the remote builder; never local credentials.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!tsconfig.json
+!scripts/
+!scripts/**
+!src/
+!src/**

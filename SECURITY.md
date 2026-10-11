@@ -63,6 +63,14 @@ This server is designed for a trusted operator or a separately authorized remote
 
 Remote deployments still authenticate transport access with `ST_MCP_API_KEY`, but that only answers "can this client reach the server?" It does not implement per-caller authorization.
 
-For the bundled HTTP transports, `ST_MCP_CLIENT_ID` names the server-controlled principal attached after successful shared-key authentication. `ST_ALLOWED_CALLERS` can restrict tool execution to that principal. Caller-supplied forwarding headers do not establish identity.
+`ST_ALLOWED_CALLERS` now accepts only exact, case-sensitive verified user subjects from `authInfo.extra.sub`. Client-provided MCP `_meta`, identity headers, and OAuth application client IDs are never treated as user identities. This intentionally breaks the previous insecure header-based allowlist behavior; stdio/API-key callers have no verified user subject and are denied if this allowlist is enabled.
 
-For multi-tenant or shared deployments, enforce authentication and authorization at the transport or proxy layer before requests reach this process. Examples include mTLS or OAuth/OIDC at the edge. Integrations that supply richer identities must attach authenticated `authInfo` in a trusted transport adapter rather than forwarding unverified request headers.
+### Auth0 OAuth transport
+
+Set `ST_MCP_AUTH_MODE=oauth` for the Streamable HTTP entrypoint. Configuration must include an HTTPS issuer and resource identifier plus non-empty explicit subject and client-ID allowlists. Startup validates Auth0 discovery and PKCE S256 support. Every MCP request validates an RS256 access token against the issuer's JWKS, issuer, audience, expiry, required scope, exact subject, and OAuth client ID. JWT-controlled key URLs are not used. Invalid credentials produce an OAuth challenge; valid but unauthorized identities receive 403.
+
+The legacy static key is ignored in OAuth mode. OAuth sessions are bound to issuer, user subject, and client ID; refreshed tokens for the same principal can reuse a session. Each tool also checks its verified request context. OAuth access follows `ST_READONLY`: the default `true` blocks mutations, while `false` together with `ST_EXPERIMENTAL_WRITES=true` enables registered write and delete tools for approved callers. Delete confirmation and optional write confirmation still apply. The configured OAuth scope is a connection-level permission, not a per-operation permission; the legacy scope name `servicetitan:read` does not impose read-only access when `ST_READONLY=false`. Public health and OAuth resource metadata contain no ServiceTitan records or credentials.
+
+Use one Fly machine because sessions remain in memory. Auth0 stores login state and refresh tokens; the MCP service needs neither an Auth0 client secret nor a local user database. Short-lived access tokens limit revocation delay: a previously issued JWT remains usable until expiry unless the server allowlist is changed. No blanket public access, anonymous tools, or metadata-based identity fallback is used.
+
+See [Auth0 deployment setup](docs/auth0-deployment.md) for configuration and connection validation.

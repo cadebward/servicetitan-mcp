@@ -4,9 +4,18 @@ import type { ServiceTitanClient } from "../../client.js";
 import type { ToolRegistry } from "../../registry.js";
 import { buildParams, paginationParams, toolError, toolResult } from "../../utils.js";
 
+const reportCategorySchema = z.string()
+  .regex(/^[a-zA-Z0-9_-]+$/, "Report category must be a single ID or slug")
+  .describe("Report category ID");
+
+const reportGetSchema = z.object({
+  reportCategory: reportCategorySchema,
+  reportId: z.number().int().describe("Report ID"),
+});
+
 const reportListSchema = paginationParams(
   z.object({
-    reportCategory: z.string().describe("Report category ID"),
+    reportCategory: reportCategorySchema,
   }),
 );
 
@@ -16,7 +25,7 @@ const reportParameterSchema = z.object({
 });
 
 const reportDataSchema = z.object({
-  reportCategory: z.string().describe("Report category ID"),
+  reportCategory: reportCategorySchema,
   reportId: z.number().int().describe("Report ID"),
   parameters: z
     .array(reportParameterSchema)
@@ -39,12 +48,7 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
     description: "List report definitions within a known report category. Use reporting_report_categories_list to discover category IDs, then use reporting_reports_get for one report definition before executing it.",
     schema: reportListSchema.shape,
     handler: async (params) => {
-      const { reportCategory, ...query } = params as {
-        reportCategory: string;
-        page?: number;
-        pageSize?: number;
-        includeTotal?: boolean;
-      };
+      const { reportCategory, ...query } = reportListSchema.parse(params);
 
       try {
         const data = await client.get(
@@ -63,15 +67,9 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
     domain: "reporting",
     operation: "read",
     description: "Retrieve one report definition from a known category and report ID, including its parameter contract. Use reporting_reports_list to discover reports and reporting_reports_data_create to execute the selected definition.",
-    schema: {
-      reportCategory: z.string().describe("Report category ID"),
-      reportId: z.number().int().describe("Report ID"),
-    },
+    schema: reportGetSchema.shape,
     handler: async (params) => {
-      const { reportCategory, reportId } = params as {
-        reportCategory: string;
-        reportId: number;
-      };
+      const { reportCategory, reportId } = reportGetSchema.parse(params);
 
       try {
         const data = await client.get(
@@ -91,9 +89,7 @@ export function registerReportTools(client: ServiceTitanClient, registry: ToolRe
     description: "Execute one requested page of a known report and return the upstream report-data response. First inspect reporting_reports_get for that report's required parameter names, value types, and accepted formats; pass those entries in parameters, and use page, pageSize, and includeTotal to control this request. This generic reporting call is not subject to the intelligence tools' report scheduler or 65-second spacing.",
     schema: reportDataSchema.shape,
     handler: async (params) => {
-      const { reportCategory, reportId, parameters, ...query } = params as z.infer<
-        typeof reportDataSchema
-      >;
+      const { reportCategory, reportId, parameters, ...query } = reportDataSchema.parse(params);
 
       try {
         const data = await client.post(

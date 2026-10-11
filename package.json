@@ -50,7 +50,8 @@
     "docs/BENCHMARKS.md",
     "docs/releases/VALIDATION-v3.md",
     "docs/releases/v3-acceptance.json",
-    "benchmarks/README.md"
+    "benchmarks/README.md",
+    "docs/auth0-deployment.md"
   ],
   "scripts": {
     "build": "node ./scripts/build.mjs",
@@ -76,6 +77,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
     "axios": "^1.8.4",
+    "jose": "^6.2.12",
     "zod": "^3.24.2"
   },
   "devDependencies": {

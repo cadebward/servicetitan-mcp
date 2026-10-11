@@ -189,3 +189,10 @@ CI tests Node 22 and 24. The required aggregate `ci` check passes only when both
 See the [validation summary](docs/releases/VALIDATION-v3.md) for coverage and remaining acceptance gates, and the [benchmark results](docs/BENCHMARKS.md) and [reproduction instructions](benchmarks/README.md) for latency, load, caching, and memory measurements.
 
 Official sources: [ServiceTitan API catalog](https://developer.servicetitan.io/api/docs/apis), [Reporting API](https://developer.servicetitan.io/docs/apis/tenant-reporting-v2), and [API rate limits](https://help.servicetitan.com/v1/docs/default-api-rate-limitsfor-regular-apis-and-reporting-apis).
+
+
+### ChatGPT / dot OAuth deployment
+
+ChatGPT personal plugins require OAuth; the legacy static API-key examples above do not connect dot. The Fly deployment uses Auth0 authorization-code login, explicit user/client allowlists, and write access controlled by `ST_READONLY`. This Fly deployment sets `ST_READONLY=false` and `ST_EXPERIMENTAL_WRITES=true` to enable writes for approved callers. See [Auth0 deployment setup](docs/auth0-deployment.md) for required environment variables and connection steps.
+
+In OAuth mode the old MCP API key is rejected. `ST_ALLOWED_CALLERS`, if configured, now accepts only exact verified user subjects from the authenticated transport; caller-supplied metadata and identity headers are not trusted.

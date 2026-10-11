@@ -55,9 +55,9 @@ function context(loader: (client: ServiceTitanClient, registry: ToolRegistry) =>
 }
 
 describe("pinned ServiceTitan contracts", () => {
-  it("pins all official operations and the 27 explicit migration exclusions", () => {
+  it("pins all official operations and the 26 explicit migration exclusions", () => {
     expect(OFFICIAL_OPERATIONS).toHaveLength(580);
-    expect(Object.keys(UNSUPPORTED_TOOLS)).toHaveLength(27);
+    expect(Object.keys(UNSUPPORTED_TOOLS)).toHaveLength(26);
     expect(OFFICIAL_OPERATIONS.find((operation) => operation.id === "GrossPayItems_Create")).toMatchObject({
       method: "POST", fullPath: "/payroll/v2/tenant/{tenant}/gross-pay-items", scopes: ["tn.prl.grosspayitems:w"],
     });

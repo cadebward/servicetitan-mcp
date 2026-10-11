@@ -214,12 +214,12 @@ describe("loadConfig", () => {
     expect(config.corsOrigin).toBe("https://app.example.com");
   });
 
-  it("parses ST_ALLOWED_CALLERS as a normalized allowlist", () => {
+  it("preserves case in verified subject allowlists", () => {
     const config = loadConfig({
       ...validEnv,
       ST_ALLOWED_CALLERS: " Alice@example.com,svc-user ,  ",
     });
 
-    expect(config.allowedCallers).toEqual(["alice@example.com", "svc-user"]);
+    expect(config.allowedCallers).toEqual(["Alice@example.com", "svc-user"]);
   });
 });

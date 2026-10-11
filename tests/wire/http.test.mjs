@@ -63,7 +63,7 @@ test("built HTTP derives caller identity from its credential and rejects self-as
     assertSafeError(await connection.client.callTool({
       name: "st_result_read", arguments: { resultId: randomUUID() },
       _meta: { caller: "allowlisted-principal", clientId: "allowlisted-principal", email: "allowlisted-principal" },
-    }), /caller not permitted/);
+    }), /caller (?:not permitted|identity unavailable)/);
   } finally {
     try { if (connection) await connection.close(); }
     finally { await runtime.stop(); }

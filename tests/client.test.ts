@@ -251,6 +251,86 @@ describe("ServiceTitanClient", () => {
     );
   });
 
+  it.each([
+    [
+      "job timesheets by job",
+      "/tenant/{tenant}/jobs/78848915/timesheets",
+      "/payroll/v2/tenant/tenant-42/jobs/78848915/timesheets",
+    ],
+    [
+      "job timesheets by multiple jobs",
+      "/tenant/{tenant}/jobs/timesheets",
+      "/payroll/v2/tenant/tenant-42/jobs/timesheets",
+    ],
+    [
+      "job timesheet export",
+      "/tenant/{tenant}/export/jobs/timesheets",
+      "/payroll/v2/tenant/tenant-42/export/jobs/timesheets",
+    ],
+    [
+      "technician payroll settings",
+      "/tenant/{tenant}/technicians/56176835/payroll-settings",
+      "/payroll/v2/tenant/tenant-42/technicians/56176835/payroll-settings",
+    ],
+  ])("routes %s to the payroll API", async (_name, inputPath, expectedPath) => {
+    const http = createAxiosInstanceMock();
+    mockAxiosCreate.mockReturnValue(http);
+    mockAxiosPost.mockResolvedValue({
+      data: { access_token: "token-1", expires_in: 3600 },
+    });
+    http.queueResolve({ data: { ok: true }, status: 200 });
+
+    const client = new ServiceTitanClient(createConfig());
+    await client.get(inputPath);
+
+    expect(http.request).toHaveBeenCalledWith(
+      expect.objectContaining({ url: expectedPath }),
+    );
+  });
+
+  it("preserves payroll timesheet query parameters", async () => {
+    const http = createAxiosInstanceMock();
+    mockAxiosCreate.mockReturnValue(http);
+    mockAxiosPost.mockResolvedValue({
+      data: { access_token: "token-1", expires_in: 3600 },
+    });
+    http.queueResolve({ data: { ok: true }, status: 200 });
+
+    const client = new ServiceTitanClient(createConfig());
+    await client.get("/tenant/{tenant}/jobs/timesheets", {
+      jobIds: "78848915",
+    });
+
+    expect(http.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/payroll/v2/tenant/tenant-42/jobs/timesheets",
+        params: { jobIds: "78848915" },
+      }),
+    );
+  });
+
+  it("preserves payroll export continuation parameters", async () => {
+    const http = createAxiosInstanceMock();
+    mockAxiosCreate.mockReturnValue(http);
+    mockAxiosPost.mockResolvedValue({
+      data: { access_token: "token-1", expires_in: 3600 },
+    });
+    http.queueResolve({ data: { ok: true }, status: 200 });
+
+    const client = new ServiceTitanClient(createConfig());
+    await client.get("/tenant/{tenant}/export/jobs/timesheets", {
+      from: "2026-02-01",
+      includeRecentChanges: true,
+    });
+
+    expect(http.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/payroll/v2/tenant/tenant-42/export/jobs/timesheets",
+        params: { from: "2026-02-01", includeRecentChanges: true },
+      }),
+    );
+  });
+
   it("preserves explicit Forms API job attachment paths", async () => {
     const http = createAxiosInstanceMock();
     mockAxiosCreate.mockReturnValue(http);

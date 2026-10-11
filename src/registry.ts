@@ -12,6 +12,7 @@ import { withRequestContext } from "./request-context.js";
 import { ResultStore } from "./result-store.js";
 import type { Logger } from "./logger.js";
 import type { ToolResponse } from "./types.js";
+import type { OAuthAccess } from "./oauth.js";
 import { getResponseDeliveryFailure, toolError, toolResult } from "./utils.js";
 
 export type ToolOperation = "read" | "write" | "delete";
@@ -66,6 +67,8 @@ export type DomainLoader = (
 export interface ToolHandlerExtra {
   authInfo?: {
     clientId?: string;
+    scopes?: string[];
+    expiresAt?: number;
     extra?: Record<string, unknown>;
   };
   signal?: AbortSignal;
@@ -94,6 +97,7 @@ export class ToolRegistry {
     private readonly config: ServiceTitanConfig,
     private readonly logger: Logger,
     private readonly auditLogger: AuditLogger = new AuditLogger(logger),
+    private readonly oauth: OAuthAccess | null = null,
   ) { assertWritePolicy(config); }
 
   attachClient(client: ServiceTitanClient): void {
@@ -179,6 +183,7 @@ export class ToolRegistry {
       {
         description: wrappedTool.description,
         inputSchema: wrappedTool.schema,
+        ...(this.oauth ? { _meta: { securitySchemes: [{ type: "oauth2", scopes: [this.oauth.config.scope] }] } } : {}),
         outputSchema: z.object({}).passthrough(),
         annotations: {
           ...defaultAnnotations,
@@ -290,6 +295,16 @@ export class ToolRegistry {
           ? this.withoutConfirm(paramRecord)
           : paramRecord;
 
+      if (this.oauth && (!extra?.authInfo?.extra?.sub ||
+          !this.oauth.config.allowedSubjects.includes(String(extra.authInfo.extra.sub)) ||
+          !this.oauth.config.allowedClientIds.includes(extra.authInfo.clientId ?? "") ||
+          !extra.authInfo.scopes?.includes(this.oauth.config.scope) ||
+          !extra.authInfo.expiresAt || extra.authInfo.expiresAt <= Date.now() / 1000)) {
+        return {
+          ...toolError("OAuth authorization required"),
+          _meta: { "mcp/www_authenticate": [this.oauth.challenge()] },
+        };
+      }
       const authorizationError = this.authorizeCaller(extra);
       if (authorizationError) {
         return authorizationError;
@@ -382,39 +397,10 @@ export class ToolRegistry {
   }
 
   private extractCallerIdentity(extra?: ToolHandlerExtra): string | null {
-    const authExtra = this.toRecord(extra?.authInfo?.extra);
-
-    const candidates = [
-      extra?.authInfo?.clientId,
-      this.readString(authExtra, "caller"),
-      this.readString(authExtra, "user"),
-      this.readString(authExtra, "username"),
-      this.readString(authExtra, "email"),
-      this.readString(authExtra, "sub"),
-    ];
-
-    for (const candidate of candidates) {
-      const normalized = this.normalizeCaller(candidate);
-      if (normalized) {
-        return normalized;
-      }
-    }
-
-    return null;
-  }
-
-  private readString(record: Record<string, unknown>, key: string): string | undefined {
-    const value = record[key];
-    return typeof value === "string" ? value : undefined;
-  }
-
-  private normalizeCaller(value: string | undefined): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const normalized = value.trim().toLowerCase();
-    return normalized.length > 0 ? normalized : null;
+    // Only the transport's verified user subject is authoritative. OAuth client IDs
+    // identify applications, and MCP metadata / forwarded headers are untrusted.
+    const subject = extra?.authInfo?.extra?.sub;
+    return typeof subject === "string" && subject.length > 0 ? subject : null;
   }
 
   private buildConfirmationPreview(

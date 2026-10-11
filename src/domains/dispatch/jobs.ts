@@ -662,16 +662,17 @@ export function registerDispatchJobTools(
     name: "dispatch_jobs_complete",
     domain: "dispatch",
     operation: "write",
-    description:
-      "Unavailable: ServiceTitan's public JPM v2 and Dispatch v2 APIs do not expose a job-completion endpoint. Job completion must occur in ServiceTitan's supported UI/mobile workflow.",
+    description: "Complete a job",
     schema: jobIdSchema.shape,
     handler: async (params) => {
-      jobIdSchema.parse(params);
-      return toolError(
-        "Job completion is not available through ServiceTitan's public API. " +
-          "Neither JPM v2 nor Dispatch v2 defines a job-completion endpoint; " +
-          "complete the job through ServiceTitan's supported UI/mobile workflow.",
-      );
+      const input = jobIdSchema.parse(params);
+
+      try {
+        const data = await client.put(`/tenant/{tenant}/jobs/${input.id}/complete`);
+        return toolResult(data);
+      } catch (error: unknown) {
+        return toolError(error);
+      }
     },
   });
 

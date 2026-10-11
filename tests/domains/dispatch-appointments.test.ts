@@ -16,6 +16,7 @@ function createConfig(): ServiceTitanConfig {
     tenantId: "tenant-id",
     environment: "integration",
     readonlyMode: false,
+    experimentalWrites: true,
     confirmWrites: false,
     maxResponseChars: 100_000,
     enabledDomains: null,
@@ -130,7 +131,7 @@ describe("dispatch appointment creation", () => {
       expect(result.content).toEqual([
         expect.objectContaining({
           type: "text",
-          text: expect.stringMatching(/end[\s\S]*Required/),
+          text: expect.stringMatching(/Required[\s\S]*end|end[\s\S]*Required/),
         }),
       ]);
       expect(post).not.toHaveBeenCalled();

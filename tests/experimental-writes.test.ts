@@ -52,7 +52,7 @@ describe("experimental mutation policy for embedded servers", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("advertises 261 ServiceTitan-facing reads, three system tools, and 194 labeled experimental mutations over the SDK", async () => {
+  it("advertises 262 ServiceTitan-facing reads, three system tools, and 194 labeled experimental mutations over the SDK", async () => {
     const patch = vi.fn(async () => ({ id: 7, updated: true }));
     const remove = vi.fn(async () => undefined);
     const forbidden = vi.fn(async () => { throw new Error("Unexpected upstream fixture call"); });
@@ -71,9 +71,9 @@ describe("experimental mutation policy for embedded servers", () => {
       const systemNames = new Set(["st_health_check", "st_readiness_check", "st_result_read"]);
       const systemTools = reads.filter(value => systemNames.has(value.name));
       const serviceTitanReads = reads.filter(value => !systemNames.has(value.name));
-      expect(reads).toHaveLength(264); expect(mutations).toHaveLength(194);
+      expect(reads).toHaveLength(265); expect(mutations).toHaveLength(194);
       expect(systemTools.map(value => value.name).sort()).toEqual([...systemNames].sort());
-      expect(serviceTitanReads).toHaveLength(261);
+      expect(serviceTitanReads).toHaveLength(262);
       expect(mutations.every(value => value.description?.startsWith(EXPERIMENTAL_MUTATION_NOTICE))).toBe(true);
       expect(reads.every(value => !value.description?.startsWith(EXPERIMENTAL_MUTATION_NOTICE))).toBe(true);
       const denied = await client.callTool({ name: "crm_customers_update", arguments: { id: 7, payload: { name: "Synthetic customer" } } });

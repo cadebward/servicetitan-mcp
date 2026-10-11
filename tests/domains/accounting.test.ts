@@ -305,3 +305,6 @@ describe("accounting domain", () => {
     // Readonly discovery omits mutating tools entirely.
     expect(handlers.has("accounting_invoices_update")).toBe(false);
 
+    expect(patchMock).not.toHaveBeenCalled();
+  });
+});

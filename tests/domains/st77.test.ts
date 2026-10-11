@@ -491,7 +491,7 @@ describe("ST-77.2 Sales template refresh", () => {
     expect(result.content[0]?.text).toContain(
       "Estimate item update was not persisted by ServiceTitan",
     );
-    expect(result.content[0]?.text).toContain('"unitPrice": 2159');
+    expect(JSON.parse(result.content[0]!.text).error.message).toContain('"unitPrice": 2159');
   });
 
   it("lists and updates estimate templates", async () => {

@@ -14,6 +14,7 @@ function createConfig(overrides: Partial<ServiceTitanConfig> = {}): ServiceTitan
     tenantId: "tenant-id",
     environment: "integration",
     readonlyMode: false,
+    experimentalWrites: true,
     confirmWrites: false,
     maxResponseChars: 100_000,
     enabledDomains: null,
@@ -30,7 +31,7 @@ function createContext(): {
   handlers: Map<string, (params: unknown) => Promise<ToolResponse>>;
   schemas: Map<string, Record<string, unknown>>;
 } {
-  const server = { tool: vi.fn() };
+  const server = { registerTool: vi.fn() };
   const logger = {
     debug: vi.fn(),
     info: vi.fn(),
@@ -51,9 +52,9 @@ function createContext(): {
 
   const handlers = new Map<string, (params: unknown) => Promise<ToolResponse>>();
   const schemas = new Map<string, Record<string, unknown>>();
-  for (const [name, schema, handler] of server.tool.mock.calls) {
+  for (const [name, schema, handler] of server.registerTool.mock.calls) {
     handlers.set(name as string, handler as (params: unknown) => Promise<ToolResponse>);
-    schemas.set(name as string, schema as Record<string, unknown>);
+    schemas.set(name as string, schema.inputSchema as Record<string, unknown>);
   }
 
   return { getMock, handlers, schemas };

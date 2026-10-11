@@ -10,7 +10,7 @@ import test from "node:test";
 const execute = promisify(execFile);
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const publicDocumentation = [
-  "README.md", "CHANGELOG.md", "TOOLS.md", "CONTRIBUTING.md",
+  "docs/auth0-deployment.md", "README.md", "CHANGELOG.md", "TOOLS.md", "CONTRIBUTING.md",
   "docs/MIGRATION-v3.md", "docs/contracts/README.md", "docs/BENCHMARKS.md",
   "docs/releases/VALIDATION-v3.md", "docs/releases/v3-acceptance.json", "benchmarks/README.md",
 ];

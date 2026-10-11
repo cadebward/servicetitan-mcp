@@ -5,7 +5,7 @@
  * Replaces the SSE transport with the newer Streamable HTTP protocol.
  * Uses standard HTTP request/response — no proxy buffering issues.
  *
- * Authentication: requires x-api-key header matching ST_MCP_API_KEY env var.
+ * Authentication: OAuth access tokens in oauth mode; shared API key in legacy api-key mode.
  *
  * Usage:
  *   ST_MCP_API_KEY=<secret> node build/streamable-http.js
@@ -24,6 +24,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { loadOAuthConfig, OAuthAccess, OAuthFailure } from "./oauth.js";
+
 import { ServiceTitanClient } from "./client.js";
 import { ExperimentalWritesDisabledError, loadConfig } from "./config.js";
 import { Logger } from "./logger.js";
@@ -36,7 +39,9 @@ const SESSION_REAP_INTERVAL_MS = 60 * 1000;
 const PORT = Number(process.env.PORT ?? process.env.ST_MCP_PORT ?? 3100);
 const API_KEY = process.env.ST_MCP_API_KEY ?? "";
 
-if (!API_KEY) {
+const oauthConfig = loadOAuthConfig();
+
+if (!oauthConfig && !API_KEY) {
   process.stderr.write("Fatal: ST_MCP_API_KEY is required for remote access.\n");
   process.exit(1);
 }
@@ -72,13 +77,14 @@ function isInitializeRequest(body: unknown): boolean {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const oauth = oauthConfig ? await OAuthAccess.discover(oauthConfig) : null;
   const version = VERSION;
   const logger = new Logger(config.logLevel, [config.clientSecret, config.appKey, API_KEY]);
   const client = new ServiceTitanClient(config);
   let stats = { registered: 0 };
   let pendingInitializations = 0;
   async function createSessionServer(): Promise<McpServer> {
-    const runtime = await createMcpServer(config, { client, logger });
+    const runtime = await createMcpServer(config, { client, logger, oauth });
     stats = runtime.registry.getStats();
     return runtime.server;
   }
@@ -89,6 +95,7 @@ async function main(): Promise<void> {
     lastSeen: number;
     closing: boolean;
     activeRequests: number;
+    owner: string;
   };
 
   // Track active sessions: transport + server
@@ -169,13 +176,30 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Auth required for everything else
-    if (!authenticated(req, API_KEY)) {
+    if (oauth && req.method === "GET" && [
+      "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp",
+    ].includes(url.pathname)) {
+      sendJson(res, 200, oauth.metadata());
+      return;
+    }
+
+    // OAuth mode never falls back to the legacy shared key or forwarded identity.
+    let owner = "legacy-api-key";
+    if (oauth) {
+      try {
+        const auth = await oauth.authenticate(req);
+        (req as IncomingMessage & { auth: AuthInfo }).auth = auth;
+        owner = oauth.sessionOwner(auth);
+      } catch (error) {
+        oauth.reject(res, error instanceof OAuthFailure ? error : new OAuthFailure(401, "invalid_token"));
+        return;
+      }
+    } else if (!authenticated(req, API_KEY)) {
       sendJson(res, 401, { error: "Unauthorized", requestId });
       return;
     }
 
-    attachAuthenticatedPrincipal(req, config.mcpClientId ?? "api-key");
+    if (!oauth) attachAuthenticatedPrincipal(req, config.mcpClientId ?? "api-key");
 
     // Legacy SSE endpoint — tell clients to use /mcp instead
     if (url.pathname === "/sse") {
@@ -221,6 +245,10 @@ async function main(): Promise<void> {
         if (sessionId && sessions.has(sessionId)) {
           // Reuse existing session
           const session = sessions.get(sessionId)!;
+          if (session.owner !== owner) {
+            sendJson(res, 403, { error: "Session belongs to another authenticated principal", requestId });
+            return;
+          }
           if (session.closing) {
             sendJson(res, 404, { error: "Session not found. Send initialize request without session ID.", requestId });
             return;
@@ -285,6 +313,7 @@ async function main(): Promise<void> {
               lastSeen: Date.now(),
               closing: false,
               activeRequests: 0,
+              owner,
             });
           },
         });

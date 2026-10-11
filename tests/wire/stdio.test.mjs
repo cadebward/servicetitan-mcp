@@ -38,7 +38,7 @@ test("built full experimental catalog labels mutations and preserves confirmatio
   await withStdio({ ST_TOOL_PROFILE: "full", ST_READONLY: "false", ST_EXPERIMENTAL_WRITES: "true", ST_CONFIRM_WRITES: "true" }, async client => {
     const tools = await allTools(client);
     assertCatalog(tools, { readonly: false, crmOnly: false });
-    assert.equal(tools.filter(tool => tool.annotations.readOnlyHint).length, 264);
+    assert.equal(tools.filter(tool => tool.annotations.readOnlyHint).length, 265);
     assert.equal(tools.filter(tool => !tool.annotations.readOnlyHint).length, 194);
     // Unconfirmed calls stop in local middleware; no upstream request occurs.
     assertSafeError(await client.callTool({ name: "crm_customers_update", arguments: { id: 7 } }), /Write confirmation required/);
@@ -55,7 +55,7 @@ test("built full catalog defaults to supported reads and readonly overrides expe
     await withStdio({ ST_TOOL_PROFILE: "full", ST_READONLY: undefined, ST_EXPERIMENTAL_WRITES: experimental }, async client => {
       const tools = await allTools(client);
       assertCatalog(tools, { crmOnly: false });
-      assert.equal(tools.length, 264);
+      assert.equal(tools.length, 265);
       assert(tools.every(tool => !tool.description.startsWith("EXPERIMENTAL:")));
     });
   }

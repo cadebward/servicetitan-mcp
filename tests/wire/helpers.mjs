@@ -17,7 +17,7 @@ export const UNSUPPORTED = [
   "marketing_suppressions_add", "payroll_payrolls_get", "payroll_timesheets_non_job_create", "payroll_timesheets_non_job_get",
   "payroll_timesheets_create_job", "payroll_timesheets_job_update", "payroll_timesheets_non_job_update", "payroll_timesheets_non_job_delete",
   "settings_tag_types_get", "settings_tag_types_delete", "export_contacts", "export_job_cancel_reasons",
-  "export_location_recurring_services", "export_location_recurring_service_events", "export_timesheets",
+  "export_location_recurring_services", "export_location_recurring_service_events",
 ];
 
 /** All ServiceTitan settings are synthetic; no inherited ST_*, proxy or Node preload settings survive. */
@@ -55,7 +55,7 @@ export function assertCatalog(tools, { readonly = true, crmOnly = true } = {}) {
   const names = new Set(tools.map(tool => tool.name));
   assert(names.has("crm_customers_list"));
   assert(names.has("st_result_read"));
-  assert.equal(UNSUPPORTED.length, 27);
+  assert.equal(UNSUPPORTED.length, 26);
   for (const name of UNSUPPORTED) assert(!names.has(name), `Unsupported tool advertised: ${name}`);
   if (readonly) {
     assert(!names.has("crm_customers_create"));

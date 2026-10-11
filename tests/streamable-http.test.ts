@@ -373,6 +373,38 @@ describe("Streamable HTTP transport HTTP handler", () => {
     expect(res.json<{ error: string }>().error).toBe("Unauthorized");
   });
 
+  it("accepts the configured bearer token", async () => {
+    const res = await dispatch({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: LATEST_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: "vitest", version: "1.0.0" },
+        },
+      }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(typeof res.headers["mcp-session-id"]).toBe("string");
+  });
+
+  it.each(["GET", "POST", "DELETE"])("rejects invalid credentials on %s /mcp", async (method) => {
+    for (const headers of [
+      { authorization: "Bearer wrong-token" },
+      { authorization: `Bearer ${"é".repeat(TEST_API_KEY.length)}` },
+      { "x-api-key": "wrong-token" },
+      { "x-user-email": "allowed@example.com" },
+    ]) {
+      const res = await dispatch({ method, url: "/mcp", headers });
+      expect(res.statusCode).toBe(401);
+    }
+  });
+
   it("invalid session IDs return 404", async () => {
     const res = await dispatch({
       method: "POST",

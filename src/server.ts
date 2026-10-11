@@ -6,6 +6,7 @@ import type { ServiceTitanConfig } from "./config.js";
 import { assertWritePolicy } from "./config.js";
 import { loadDomainModules } from "./domains/loader.js";
 import { Logger } from "./logger.js";
+import type { OAuthAccess } from "./oauth.js";
 import { ToolRegistry } from "./registry.js";
 import { checkReadiness } from "./readiness.js";
 import { getRequestContext, throwIfAborted } from "./request-context.js";
@@ -15,12 +16,12 @@ declare const __PACKAGE_VERSION__: string | undefined;
 
 export const VERSION = typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
-export async function createMcpServer(config: ServiceTitanConfig, options: { client?: ServiceTitanClient; logger?: Logger } = {}) {
+export async function createMcpServer(config: ServiceTitanConfig, options: { client?: ServiceTitanClient; logger?: Logger; oauth?: OAuthAccess | null } = {}) {
   assertWritePolicy(config);
   const client = options.client ?? new ServiceTitanClient(config);
   const logger = options.logger ?? new Logger(config.logLevel, [config.clientSecret, config.appKey]);
   const server = new McpServer({ name: "ServiceTitan", version: VERSION });
-  const registry = new ToolRegistry(server, config, logger);
+  const registry = new ToolRegistry(server, config, logger, undefined, options.oauth);
   registry.attachClient(client);
   registry.register({
     name: "st_health_check", domain: "_system", operation: "read", schema: {},

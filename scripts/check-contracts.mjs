@@ -58,6 +58,6 @@ for (const record of records) {
   if (exists && unsupported.has(record.tool)) failures.push({ ...record, error: "unsupported exclusion is stale because an official operation now exists" });
 }
 for (const tool of unsupported) if (!records.some((record) => record.tool === tool)) failures.push({ tool, error: "unsupported tool is not present in source inventory" });
-if (unsupported.size !== 27) failures.push({ error: `expected 27 unsupported tools, found ${unsupported.size}` });
+if (unsupported.size !== 26) failures.push({ error: `expected 26 unsupported tools, found ${unsupported.size}` });
 if (failures.length) { console.error(JSON.stringify(failures, null, 2)); process.exit(1); }
 console.log(JSON.stringify({ officialOperations: operations.length, officialRequestBodies: requestBodies, handlerOperations: records.length, unsupportedTools: unsupported.size, status: "ok" }));

@@ -156,7 +156,7 @@ function parseAllowedCallers(value: string | undefined): string[] | null {
 
   const callers = value
     .split(",")
-    .map((caller) => caller.trim().toLowerCase())
+    .map((caller) => caller.trim())
     .filter(Boolean);
 
   return callers.length === 0 ? null : callers;
