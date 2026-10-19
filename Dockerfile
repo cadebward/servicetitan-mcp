@@ -8,7 +8,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY scripts ./scripts
 COPY src ./src
-RUN npm run build
+RUN npm run build -- --skip-declarations
 
 FROM node:22-alpine AS runtime
 

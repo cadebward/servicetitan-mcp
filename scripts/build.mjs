@@ -2,6 +2,11 @@ import { rm, readFile } from "node:fs/promises";
 
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
+import { parseArgs } from "node:util";
+
+const { values } = parseArgs({
+  options: { "skip-declarations": { type: "boolean", default: false } },
+});
 
 await rm("build", { recursive: true, force: true });
 
@@ -29,4 +34,7 @@ await build({
 });
 
 // Publish library declarations alongside the bundled import entrypoint.
-execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "--emitDeclarationOnly", "--outDir", "build/types"], { stdio: "inherit" });
+// Docker only needs runtime JavaScript; npm builds retain declarations by default.
+if (!values["skip-declarations"]) {
+  execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "--emitDeclarationOnly", "--outDir", "build/types"], { stdio: "inherit" });
+}
