@@ -430,11 +430,13 @@ export function registerPeopleTechnicianTools(
     description: "Retrieve one requested page of marketing performance metrics for a UTC period, segmented by campaign, ad group, or keyword. Use this to compare acquisition performance at one selected grain.",
     schema: performanceGetSchema.shape,
     handler: async (params) => {
-      const input = performanceGetSchema.parse(params);
-
       try {
+        const input = performanceGetSchema.refine(
+          ({ fromUtc, toUtc }) => Date.parse(fromUtc) < Date.parse(toUtc),
+          { message: "toUtc must be after fromUtc", path: ["toUtc"] },
+        ).parse(params);
         const data = await client.get(
-          "/tenant/{tenant}/performance",
+          "/marketingads/v2/tenant/{tenant}/performance",
           buildParams({
             fromUtc: input.fromUtc,
             toUtc: input.toUtc,

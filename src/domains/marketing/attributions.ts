@@ -181,11 +181,13 @@ export function registerMarketingAttributionTools(
     description: "Search attributed leads within a required UTC time window, optionally filtered by lead type. Returns one page of leads linked to marketing attribution activity.",
     schema: attributedLeadsListSchema.shape,
     handler: async (params) => {
-      const input = params as z.infer<typeof attributedLeadsListSchema>;
-
       try {
+        const input = attributedLeadsListSchema.refine(
+          ({ fromUtc, toUtc }) => Date.parse(fromUtc) < Date.parse(toUtc),
+          { message: "toUtc must be after fromUtc", path: ["toUtc"] },
+        ).parse(params);
         const data = await client.get(
-          "/tenant/{tenant}/attributed-leads",
+          "/marketingads/v2/tenant/{tenant}/attributed-leads",
           buildParams({
             fromUtc: input.fromUtc,
             toUtc: input.toUtc,
@@ -211,7 +213,7 @@ export function registerMarketingAttributionTools(
     schema: {},
     handler: async () => {
       try {
-        const data = await client.get("/tenant/{tenant}/data");
+        const data = await client.get("/taskmanagement/v2/tenant/{tenant}/data");
         return toolResult(data);
       } catch (error: unknown) {
         return toolError(error);
